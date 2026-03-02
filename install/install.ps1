@@ -53,13 +53,13 @@ function Get-LatestVersion {
 
     try {
         $Releases = Invoke-RestMethod -Uri $ReleasesUrl -UseBasicParsing
-        $CliRelease = $Releases | Where-Object { $_.tag_name -like "v*" } | Select-Object -First 1
+        $CliRelease = $Releases | Where-Object { $_.tag_name -match "^v\d+\.\d+\.\d+$" } | Select-Object -First 1
 
         if (-not $CliRelease) {
             Write-Err "No CLI releases found"
         }
 
-        return $CliRelease.tag_name -replace "v", ""
+        return $CliRelease.tag_name -replace "^v", ""
     }
     catch {
         Write-Err "Failed to fetch releases: $_"
@@ -145,6 +145,6 @@ if (-not $Version) {
 Install-MergeMate -Version $Version
 
 Write-Host ""
-Write-Host "Merge Mate CLI v$Version installed successfully" -ForegroundColor Green
+Write-Host "✓ Merge Mate CLI v$Version installed successfully" -ForegroundColor Green
 Write-Host ""
 Write-Host "Run 'merge-mate --help' to get started"

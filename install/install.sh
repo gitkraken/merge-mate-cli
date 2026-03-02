@@ -5,6 +5,12 @@ REPO="${MERGE_MATE_REPO:-gitkraken/merge-mate-cli}"
 INSTALL_DIR="${MERGE_MATE_INSTALL_DIR:-$HOME/.local/bin}"
 BIN_NAME="merge-mate"
 VERSION=""
+TMP_DIR=""
+
+cleanup() {
+  [[ -n "$TMP_DIR" && -d "$TMP_DIR" ]] && rm -rf "$TMP_DIR"
+}
+trap cleanup EXIT
 
 usage() {
   cat <<EOF
@@ -69,7 +75,7 @@ get_latest_version() {
   local releases_url="https://api.github.com/repos/${REPO}/releases"
   local version
 
-  version=$(curl -fsSL "$releases_url" | grep -o '"tag_name": "v[^"]*"' | head -1 | sed 's/.*v\([^"]*\)".*/\1/')
+  version=$(curl -fsSL "$releases_url" | grep -o '"tag_name": "v[^"]*"' | grep -v -- '-' | head -1 | sed 's/.*"v\([^"]*\)".*/\1/')
 
   if [[ -z "$version" ]]; then
     error "Could not determine latest version. Check your internet connection or specify --version"
@@ -85,32 +91,29 @@ download_and_verify() {
   local binary_name="merge-mate-${platform}"
   local download_url="https://github.com/${REPO}/releases/download/${tag}/${binary_name}"
   local checksums_url="https://github.com/${REPO}/releases/download/${tag}/checksums-sha256.txt"
-  local tmp_dir
-
-  tmp_dir=$(mktemp -d)
-  trap 'rm -rf "$tmp_dir"' EXIT
+  TMP_DIR=$(mktemp -d)
 
   info "Downloading $binary_name (v$version)..."
-  if ! curl -fsSL "$download_url" -o "$tmp_dir/$binary_name"; then
+  if ! curl -fsSL "$download_url" -o "$TMP_DIR/$binary_name"; then
     error "Failed to download binary. Version $version may not exist for $platform"
   fi
 
   info "Verifying checksum..."
-  if ! curl -fsSL "$checksums_url" -o "$tmp_dir/checksums.txt"; then
+  if ! curl -fsSL "$checksums_url" -o "$TMP_DIR/checksums.txt"; then
     error "Failed to download checksums"
   fi
 
   local expected_checksum actual_checksum
-  expected_checksum=$(grep "$binary_name" "$tmp_dir/checksums.txt" | awk '{print $1}')
+  expected_checksum=$(grep "$binary_name" "$TMP_DIR/checksums.txt" | awk '{print $1}')
 
   if [[ -z "$expected_checksum" ]]; then
     error "Checksum not found for $binary_name"
   fi
 
   if command -v sha256sum &>/dev/null; then
-    actual_checksum=$(sha256sum "$tmp_dir/$binary_name" | awk '{print $1}')
+    actual_checksum=$(sha256sum "$TMP_DIR/$binary_name" | awk '{print $1}')
   elif command -v shasum &>/dev/null; then
-    actual_checksum=$(shasum -a 256 "$tmp_dir/$binary_name" | awk '{print $1}')
+    actual_checksum=$(shasum -a 256 "$TMP_DIR/$binary_name" | awk '{print $1}')
   else
     error "Neither sha256sum nor shasum found"
   fi
@@ -122,12 +125,12 @@ download_and_verify() {
   info "Checksum verified"
 
   if [[ "$(uname -s)" == "Darwin" ]]; then
-    xattr -d com.apple.quarantine "$tmp_dir/$binary_name" 2>/dev/null || true
+    xattr -d com.apple.quarantine "$TMP_DIR/$binary_name" 2>/dev/null || true
   fi
 
   mkdir -p "$INSTALL_DIR"
-  chmod +x "$tmp_dir/$binary_name"
-  mv "$tmp_dir/$binary_name" "$INSTALL_DIR/$BIN_NAME"
+  chmod +x "$TMP_DIR/$binary_name"
+  mv "$TMP_DIR/$binary_name" "$INSTALL_DIR/$BIN_NAME"
 
   info "Installed to $INSTALL_DIR/$BIN_NAME"
 }
@@ -176,7 +179,7 @@ main() {
   check_path
 
   echo ""
-  echo "Merge Mate CLI v$VERSION installed successfully"
+  echo "✓ Merge Mate CLI v$VERSION installed successfully"
   echo ""
   echo "Run 'merge-mate --help' to get started"
 }
