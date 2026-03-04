@@ -53,7 +53,7 @@ If no branches are specified, an interactive picker is shown.
 | `--provider` | `gitkraken` | AI provider: `gitkraken` |
 | `--model` | `anthropic/claude-sonnet-4-5` | AI model identifier (provider-specific) |
 | `--api-key` | `$MERGE_MATE_API_KEY` | API key for the AI provider |
-| `--cache` | `true` | Use git rerere cache for previously resolved conflicts |
+| `--no-cache` | `false` | Disable git rerere cache for previously resolved conflicts |
 | `--apply-policy` | `auto` | `auto` — apply if above threshold. `hidden-only` — save to refs only. `dry-run` — preview, no push |
 | `--confidence-threshold` | `100` | Minimum AI confidence (0–100) to auto-apply. `100` = only when fully confident |
 | `--telemetry` | `true` | Enable telemetry and error tracking |
