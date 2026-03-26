@@ -2,6 +2,11 @@
 
 Command-line tool for syncing branches with AI-powered conflict resolution.
 
+## Prerequisites
+
+- [**git**](https://git-scm.com/install/) must be installed and available in PATH
+- Must be run inside a git repository
+
 ## Installation
 
 **Linux / macOS:**
@@ -28,6 +33,26 @@ curl -fsSL .../install.sh | bash -s -- --dir /usr/local/bin
 
 Or download binaries manually from [GitHub Releases](https://github.com/gitkraken/merge-mate-cli/releases).
 
+> The installer adds the binary to `~/.local/bin` by default. If this directory is not in your `PATH`, follow the instructions printed after installation.
+
+## Authentication
+
+Before syncing with AI, log in to save your API key:
+
+```bash
+merge-mate login
+```
+
+This opens a browser to [Settings](https://gitkraken.dev/mergemate/settings) where you sign in and create an API key. The key is saved locally for future runs.
+
+To remove stored credentials:
+
+```bash
+merge-mate logout
+```
+
+You can also set the `MERGE_MATE_API_KEY` environment variable instead of using `login`.
+
 ## Usage
 
 ```bash
@@ -45,17 +70,30 @@ merge-mate rebase feature-1 feature-2 --base main
 merge-mate merge feature-1 --base develop --apply-policy dry-run
 ```
 
-If no branches are specified, an interactive picker is shown.
+If no branches are specified, an interactive picker is shown. The picker shows only branches that directly target the `--base` branch. Stacked branches targeting other feature branches are hidden automatically.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--base` | `main` | Target branch to sync with |
-| `--provider` | `gitkraken` | AI provider: `gitkraken` |
-| `--model` | `anthropic/claude-sonnet-4-5` | AI model identifier (provider-specific) |
-| `--api-key` | `$MERGE_MATE_API_KEY` | API key for the AI provider |
-| `--apply-policy` | `auto` | `auto` — apply if above threshold. `review` — save to refs for review. `dry-run` — preview, no push. `resolved-only` — skip clean rebases (no conflicts) |
-| `--confidence-threshold` | `100` | Minimum AI confidence (0–100) to auto-apply. `100` = only when fully confident |
-| `--telemetry` | `true` | Enable telemetry and error tracking |
+| Option                   | Default                       | Description                                                                                                                                                  |
+| ------------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--base`                 | `main`                        | Target branch to sync with                                                                                                                                   |
+| `--model`                | `google/gemini-3-flash-preview` | AI model identifier                                                                                                                                          |
+| `--apply-policy`         | `auto`                        | `auto` — apply if above threshold. `review` — save to refs for review. `dry-run` — preview, no push. `resolved-only` — skip clean rebases (no conflicts) |
+| `--confidence-threshold` | `100`                         | Minimum AI confidence (0–100) to auto-apply. `100` = only when fully confident                                                                               |
+| `--telemetry`            | `true`                        | Enable telemetry and error tracking                                                                                                                          |
+
+### `resolve` — Resume and resolve conflicts
+
+Resumes an in-progress rebase or merge and resolves remaining conflicts with AI.
+
+```bash
+merge-mate resolve
+```
+
+Run this when a `git rebase` or `git merge` is paused due to conflicts. Merge Mate detects the operation in progress, resolves what it can, and either completes the operation or prompts you to abort.
+
+| Option        | Default                       | Description                         |
+| ------------- | ----------------------------- | ----------------------------------- |
+| `--model`     | `google/gemini-3-flash-preview` | AI model identifier                 |
+| `--telemetry` | `true`                        | Enable telemetry and error tracking |
 
 ### `status` — Show sync results
 
@@ -74,8 +112,18 @@ merge-mate review --resolved-only
 
 Shows detailed resolution report: strategy, confidence, AI reasoning, and review hints per file. Optionally opens a diff viewer comparing before/after states.
 
-| Option | Default | Description |
-|--------|---------|-------------|
+**Resolution strategies:**
+
+| Strategy  | Meaning                                                     |
+| --------- | ----------------------------------------------------------- |
+| `merged`  | AI combined changes from both sides into a new resolution   |
+| `ours`    | Kept the current branch version, discarded incoming changes |
+| `theirs`  | Took the incoming (target branch) version                   |
+| `deleted` | File was deleted to resolve the conflict                    |
+| `skipped` | AI could not resolve — conflict left as-is                  |
+
+| Option            | Default | Description                                       |
+| ----------------- | ------- | ------------------------------------------------- |
 | `--resolved-only` | `false` | Only show files with conflicts (hide clean files) |
 
 ### `apply` — Apply resolved changes
@@ -87,10 +135,12 @@ merge-mate apply --all --confidence-threshold 80
 
 Applies sync results to branch refs. If the branch is currently checked out, updates the working tree.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--all` | `false` | Apply all pending results |
-| `--confidence-threshold` | `100` | Minimum AI confidence (0–100) to apply. `100` = only when fully confident |
+| Option                   | Default | Description                                                               |
+| ------------------------ | ------- | ------------------------------------------------------------------------- |
+| `--all`                  | `false` | Apply all pending results                                                 |
+| `--confidence-threshold` | `100`   | Minimum AI confidence (0–100) to apply. `100` = only when fully confident |
+
+The default threshold of `100` means only perfect-confidence resolutions are eligible. If AI resolved conflicts at lower confidence (e.g. 85%), those branches won't appear in the picker or `--all` until you lower the threshold: `merge-mate apply --all --confidence-threshold 80`.
 
 ### `rollback` — Undo applied changes
 
@@ -101,8 +151,8 @@ merge-mate rollback --all
 
 Restores branches from backup refs created during sync.
 
-| Option | Default | Description |
-|--------|---------|-------------|
+| Option  | Default | Description                   |
+| ------- | ------- | ----------------------------- |
 | `--all` | `false` | Rollback all applied branches |
 
 ### `clean` — Remove sync state
@@ -114,36 +164,44 @@ merge-mate clean --all
 
 Deletes backup refs, resolved refs, and sync report files.
 
-| Option | Default | Description |
-|--------|---------|-------------|
+> [!WARNING]
+> This removes **all** sync state including pending resolutions that haven't been applied yet.
+> Run `merge-mate status` first to check for unreviewed results.
+
+| Option  | Default | Description        |
+| ------- | ------- | ------------------ |
 | `--all` | `false` | Clean all branches |
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `MERGE_MATE_API_KEY` | API key for the AI provider |
-| `MERGE_MATE_API_BASE` | Custom API base URL |
-| `LOG_LEVEL` | Logging verbosity: `error` \| `warn` \| `info` \| `debug`. Disables interactive TTY mode when set |
+| Variable                     | Description                                                                                       |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- |
+| `MERGE_MATE_API_KEY`         | API key — overrides stored credentials from `login`                                               |
+| `MERGE_MATE_NO_UPDATE_CHECK` | Set to `1` to disable update notifications on startup                                             |
+| `LOG_LEVEL`                  | Logging verbosity: `error` \| `warn` \| `info` \| `debug`. Disables interactive TTY mode when set |
 
 ## Typical Workflow
 
+### Sync and auto-apply
+
 ```bash
-# 1. Sync branches with AI resolution
 merge-mate rebase feature-1 feature-2 --base main
+```
 
-# 2. Check results
+With the default `--apply-policy auto` and `--confidence-threshold 100`, clean rebases are applied immediately and AI resolutions are saved for review.
+
+### Review before applying
+
+```bash
+merge-mate rebase feature-1 --base main --apply-policy review
 merge-mate status
-
-# 3. Review AI decisions
 merge-mate review feature-1
-
-# 4. Apply if satisfied
 merge-mate apply feature-1
+```
 
-# 5. Or rollback if not
-merge-mate rollback feature-1
+### Resolve conflicts mid-rebase
 
-# 6. Clean up when done
-merge-mate clean --all
+```bash
+git rebase main         # conflicts appear
+merge-mate resolve      # AI resolves and continues
 ```
