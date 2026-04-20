@@ -172,6 +172,14 @@ Deletes backup refs, resolved refs, and sync report files.
 | ------- | ------- | ------------------ |
 | `--all` | `false` | Clean all branches |
 
+### `self-update` — Update the CLI
+
+```bash
+merge-mate self-update
+```
+
+Updates the CLI to the latest stable release.
+
 ## Environment Variables
 
 | Variable                     | Description                                                                                       |
