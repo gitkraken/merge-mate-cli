@@ -101,7 +101,7 @@ Run this when a `git rebase` or `git merge` is paused due to conflicts. Merge Ma
 merge-mate status
 ```
 
-Displays a table with branch, base, mode, sync status, confidence, resolved files count, and application status.
+Displays a table with branch, base, mode, action (Synced / Applied / Prepared / Failed / Aborted), confidence, resolved file counts, and timestamp.
 
 ### `review` — Inspect AI resolutions
 
